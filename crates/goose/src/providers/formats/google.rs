@@ -1,7 +1,7 @@
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
-use crate::providers::utils::{is_valid_function_name, sanitize_function_name};
+use crate::providers::utils::{is_valid_function_name, sanitize_function_name, starts_with_sse_field, strip_sse_field};
 use anyhow::Result;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, ErrorCode, ErrorData, RawContent, Role, Tool,
@@ -391,9 +391,12 @@ where
                 continue;
             }
 
-            let data_part = if line.starts_with("data: ") {
-                line.strip_prefix("data: ").unwrap()
-            } else if line.starts_with("event:") || line.starts_with("id:") || line.starts_with("retry:") {
+            let data_part = if let Some(data) = strip_sse_field(&line, "data") {
+                data
+            } else if starts_with_sse_field(&line, "event")
+                || starts_with_sse_field(&line, "id")
+                || starts_with_sse_field(&line, "retry")
+            {
                 continue;
             } else if incomplete_data.is_some() {
                 &line

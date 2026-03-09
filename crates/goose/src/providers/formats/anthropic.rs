@@ -2,7 +2,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
-use crate::providers::utils::{convert_image, ImageFormat};
+use crate::providers::utils::{convert_image, starts_with_sse_field, strip_sse_field, ImageFormat};
 use anyhow::{anyhow, Result};
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
@@ -572,11 +572,11 @@ where
             let line = line_result?;
 
             // Skip empty lines and non-data lines
-            if line.trim().is_empty() || !line.starts_with("data: ") {
+            if line.trim().is_empty() || !starts_with_sse_field(&line, "data") {
                 continue;
             }
 
-            let data_part = line.strip_prefix("data: ").unwrap_or(&line);
+            let data_part = strip_sse_field(&line, "data").unwrap_or(&line);
 
             // Handle end of stream
             if data_part.trim() == "[DONE]" {

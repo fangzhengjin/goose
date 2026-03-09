@@ -2,6 +2,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::Usage;
 use crate::providers::errors::ProviderError;
+use crate::providers::utils::strip_sse_field;
 use anyhow::{anyhow, Result};
 use rmcp::model::{object, CallToolRequestParams, Role, Tool};
 use rmcp::object;
@@ -132,13 +133,9 @@ pub fn parse_streaming_response(sse_data: &str) -> Result<Message> {
 
     // Parse each SSE event
     for line in sse_data.lines() {
-        if !line.starts_with("data: ") {
+        let Some(json_str) = strip_sse_field(line, "data") else {
             continue;
-        }
-
-        let Some(json_str) = line.get(6..) else {
-            continue;
-        }; // Remove "data: " prefix
+        };
         if json_str.trim().is_empty() || json_str.trim() == "[DONE]" {
             continue;
         }

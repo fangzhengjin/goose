@@ -2,6 +2,23 @@ import type { AnyMessage, Stream } from "@agentclientprotocol/sdk";
 
 const ACP_SESSION_HEADER = "Acp-Session-Id";
 
+/**
+ * Strip SSE field prefix from a line, supporting both formats with and without space after colon.
+ * SSE specification allows both "field: value" and "field:value" formats.
+ */
+function stripSseField(line: string, field: string): string | null {
+  const prefixWithSpace = `${field}: `;
+  const prefixWithoutSpace = `${field}:`;
+
+  if (line.startsWith(prefixWithSpace)) {
+    return line.slice(prefixWithSpace.length).trim();
+  }
+  if (line.startsWith(prefixWithoutSpace)) {
+    return line.slice(prefixWithoutSpace.length).trim();
+  }
+  return null;
+}
+
 export function createHttpStream(serverUrl: string): Stream {
   let sessionId: string | null = null;
   const incoming: AnyMessage[] = [];
@@ -36,9 +53,10 @@ export function createHttpStream(serverUrl: string): Stream {
 
         for (const part of parts) {
           for (const line of part.split("\n")) {
-            if (line.startsWith("data: ")) {
+            const data = stripSseField(line, "data");
+            if (data !== null) {
               try {
-                const msg = JSON.parse(line.slice(6)) as AnyMessage;
+                const msg = JSON.parse(data) as AnyMessage;
                 pushMessage(msg);
               } catch {
                 // ignore malformed JSON

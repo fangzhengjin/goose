@@ -1,6 +1,7 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ProviderUsage, Usage};
+use crate::providers::utils::{starts_with_sse_field, strip_sse_field};
 use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
@@ -610,9 +611,9 @@ where
 
             // Parse SSE format: "event: <type>\ndata: <json>"
             // For now, we only care about the data line
-            let data_line = if response_str.starts_with("data: ") {
-                response_str.strip_prefix("data: ").unwrap()
-            } else if response_str.starts_with("event: ") {
+            let data_line = if let Some(data) = strip_sse_field(&response_str, "data") {
+                data
+            } else if starts_with_sse_field(&response_str, "event") {
                 // Skip event type lines
                 continue;
             } else {

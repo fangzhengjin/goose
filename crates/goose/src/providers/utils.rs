@@ -498,6 +498,33 @@ pub fn json_escape_control_chars_in_string(s: &str) -> String {
     r
 }
 
+/// Strip SSE field prefix from a line, supporting both formats with and without space after colon.
+/// SSE specification allows both "field: value" and "field:value" formats.
+pub fn strip_sse_field<'a>(line: &'a str, field: &str) -> Option<&'a str> {
+    let prefix_with_space = format!("{}: ", field);
+    let prefix_without_space = format!("{}:", field);
+
+    // Try format with space first (more common)
+    if let Some(rest) = line.strip_prefix(&prefix_with_space) {
+        return Some(rest.trim());
+    }
+
+    // Try format without space
+    if let Some(rest) = line.strip_prefix(&prefix_without_space) {
+        return Some(rest.trim());
+    }
+
+    None
+}
+
+/// Check if an SSE line starts with the specified field (supports both formats with and without space).
+pub fn starts_with_sse_field(line: &str, field: &str) -> bool {
+    let prefix_with_space = format!("{}: ", field);
+    let prefix_without_space = format!("{}:", field);
+
+    line.starts_with(&prefix_with_space) || line.starts_with(&prefix_without_space)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -825,5 +852,54 @@ mod tests {
             parse_google_retry_delay(&payload),
             Some(Duration::from_secs(42))
         );
+    }
+
+    #[test]
+    fn test_strip_sse_field_with_space() {
+        assert_eq!(
+            strip_sse_field("data: {\"type\":\"ping\"}", "data"),
+            Some("{\"type\":\"ping\"}")
+        );
+        assert_eq!(
+            strip_sse_field("event: message", "event"),
+            Some("message")
+        );
+    }
+
+    #[test]
+    fn test_strip_sse_field_without_space() {
+        assert_eq!(
+            strip_sse_field("data:{\"type\":\"ping\"}", "data"),
+            Some("{\"type\":\"ping\"}")
+        );
+        assert_eq!(
+            strip_sse_field("event:message", "event"),
+            Some("message")
+        );
+    }
+
+    #[test]
+    fn test_strip_sse_field_with_extra_spaces() {
+        // The function trims the result, so extra spaces in value are preserved but leading/trailing trimmed
+        assert_eq!(
+            strip_sse_field("data:  {\"type\":\"ping\"}  ", "data"),
+            Some("{\"type\":\"ping\"}")
+        );
+    }
+
+    #[test]
+    fn test_strip_sse_field_no_match() {
+        assert_eq!(strip_sse_field("other: value", "data"), None);
+        assert_eq!(strip_sse_field("data", "data"), None);
+    }
+
+    #[test]
+    fn test_starts_with_sse_field() {
+        assert!(starts_with_sse_field("data: value", "data"));
+        assert!(starts_with_sse_field("data:value", "data"));
+        assert!(starts_with_sse_field("event: message", "event"));
+        assert!(starts_with_sse_field("event:message", "event"));
+        assert!(!starts_with_sse_field("other: value", "data"));
+        assert!(!starts_with_sse_field("datax: value", "data"));
     }
 }
